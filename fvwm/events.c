@@ -69,6 +69,10 @@ unsigned int mods_used = (ShiftMask | ControlMask | Mod1Mask |
 			  Mod2Mask| Mod3Mask| Mod4Mask| Mod5Mask);
 extern int menuFromFrameOrWindowOrTitlebar;
 
+static Atom _XA_NET_WM_NAME = None;
+static Atom _XA_UTF8_STRING = None;
+
+
 
 int Context = C_NO_CONTEXT;	/* current button press context */
 int Button = 0;
@@ -107,6 +111,13 @@ PFEH EventHandlerJumpTable[LASTEvent];
 void InitEventHandlerJumpTable(void)
 {
   int i;
+
+  /* Intern EWMH/UTF-8 atoms once (cannot be used as switch-case constants) */
+  if (_XA_NET_WM_NAME == None)
+    _XA_NET_WM_NAME = XInternAtom(dpy, "_NET_WM_NAME", False);
+
+  if (_XA_UTF8_STRING == None)
+    _XA_UTF8_STRING = XInternAtom(dpy, "UTF8_STRING", False);
 
   for (i=0; i<LASTEvent; i++)
   {
@@ -450,250 +461,183 @@ void HandleKeyPress()
 /***********************************************************************
  *
  *  Procedure:
- *	HandlePropertyNotify - property notify event handler
+ *      HandlePropertyNotify - property notify event handler
  *
  ***********************************************************************/
-#define MAX_NAME_LEN 200L		/* truncate to this many */
-#define MAX_ICON_NAME_LEN 200L		/* ditto */
+#define MAX_NAME_LEN 200L        /* truncate to this many */
+#define MAX_ICON_NAME_LEN 200L   /* ditto */
 
-void HandlePropertyNotify()
+void HandlePropertyNotify(void)
 {
-  XTextProperty text_prop;
+    XTextProperty text_prop;
+
 #ifdef I18N
-  Atom actual = None;
-  int actual_format;
-  unsigned long nitems, bytesafter;
-  char *prop = NULL;
-  char **list;
-  int num;
+    Atom actual = None;
+    int actual_format;
+    unsigned long nitems, bytesafter;
+    char *prop = NULL;
+    char **list;
+    int num;
 #endif
-  
-  if ((!Tmp_win)||(XGetGeometry(dpy, Tmp_win->w, &JunkRoot, &JunkX, &JunkY,
-				&JunkWidth, &JunkHeight, &JunkBW, &JunkDepth) == 0))
-    return;
-  
-  switch (Event.xproperty.atom) 
+
+    if (!Tmp_win ||
+        XGetGeometry(dpy, Tmp_win->w, &JunkRoot, &JunkX, &JunkY,
+                     &JunkWidth, &JunkHeight, &JunkBW, &JunkDepth) == 0)
     {
-    case XA_WM_NAME:
-#ifdef I18N
-     if (XGetWindowProperty (dpy, Tmp_win->w, Event.xproperty.atom, 0L,
-                            MAX_NAME_LEN, False, AnyPropertyType, &actual,
-                            &actual_format, &nitems, &bytesafter,
-                            (unsigned char **) &prop) != Success ||
-	 actual == None)
-	return;
-      text_prop.value = prop;
-      text_prop.encoding = actual;
-      text_prop.format = actual_format;
-      text_prop.nitems = nitems;
-      if (XmbTextPropertyToTextList(dpy, &text_prop, &list, &num) < Success)
-	return;
-#ifdef EVIL
-      if (!(num > 0 && *list)) {
-        if (!XGetWMName(dpy, Tmp_win->w, &text_prop))
-	  return;
-	free_window_name (Tmp_win);
-        Tmp_win->name = (char *)text_prop.value;
-      } else {
-        prop = *list;
-        Tmp_win->name = prop;
-        if((Tmp_win->name != NULL) && (strcmp(Tmp_win->name, "") == 0)) {
-          if (!XGetWMName(dpy, Tmp_win->w, &text_prop))
-	    return;
-          free_window_name (Tmp_win);
-          Tmp_win->name = (char *)text_prop.value;
-        }
-      }
-#else /* EVIL */
-      if (!(num > 0 && *list))
-	prop = NoName;
-      else
-	prop = *list;
-      free_window_name (Tmp_win);
-      Tmp_win->name = prop;
-#endif /* EVIL */
-#else /* I18N */
-      if (!XGetWMName(dpy, Tmp_win->w, &text_prop))
-	return;
+        return;
+    }
 
-      free_window_name (Tmp_win);
-      
-      Tmp_win->name = (char *)text_prop.value;
-#endif /* I18N */
-      if (Tmp_win->name == NULL)
-        Tmp_win->name = NoName;
-      BroadcastName(M_WINDOW_NAME,Tmp_win->w,Tmp_win->frame,
-		    (unsigned long)Tmp_win,Tmp_win->name);
-      
-      /* fix the name in the title bar */
-      if(!(Tmp_win->flags & ICONIFIED))
-	SetTitleBar(Tmp_win,(Scr.Hilite==Tmp_win),True);
-      
-      /*
-       * if the icon name is NoName, set the name of the icon to be
-       * the same as the window 
-       */
-      if (Tmp_win->icon_name == NoName) 
-	{
-	  Tmp_win->icon_name = Tmp_win->name;
-	  BroadcastName(M_ICON_NAME,Tmp_win->w,Tmp_win->frame,
-			(unsigned long)Tmp_win,Tmp_win->icon_name);
-	  RedoIconName(Tmp_win);
-	}
-      break;
-      
-    case XA_WM_ICON_NAME:
-#ifdef I18N
-     if (XGetWindowProperty (dpy, Tmp_win->w, Event.xproperty.atom, 0L,
-                           MAX_NAME_LEN, False, AnyPropertyType, &actual,
-                           &actual_format, &nitems, &bytesafter,
-                           (unsigned char **) &prop) != Success ||
-	 actual == None)
-	return;
-     text_prop.value = prop;
-     text_prop.encoding = actual;
-     text_prop.format = actual_format;
-     text_prop.nitems = nitems;
-     if (XmbTextPropertyToTextList(dpy, &text_prop, &list, &num) < Success)
-	return;
-#ifdef EVIL
-     if (!(num > 0 && *list)) {
-       if (!XGetWMIconName (dpy, Tmp_win->w, &text_prop))
-	return;
-       free_icon_name (Tmp_win);
-       Tmp_win->icon_name = (char *) text_prop.value;
-     } else {
-       prop = *list;
-       Tmp_win->icon_name = prop;
-       if((Tmp_win->icon_name != NULL) && (strcmp(Tmp_win->icon_name, "") == 0)) {
-	 if (!XGetWMIconName (dpy, Tmp_win->w, &text_prop))
-           return;
-         free_icon_name (Tmp_win);
-         Tmp_win->icon_name = (char *) text_prop.value;
-       }
-     }
-#else /* EVIL */
-     if (!(num > 0 && *list))
-	prop = NoName;
-     else
-	prop = *list;
-     free_icon_name (Tmp_win);
-     Tmp_win->icon_name = prop;
-#endif /* EVIL */
-#else /* I18N */
-      if (!XGetWMIconName (dpy, Tmp_win->w, &text_prop))
-	return;
-      free_icon_name (Tmp_win);
-      Tmp_win->icon_name = (char *) text_prop.value;
-#endif /* I18N */
-      if (Tmp_win->icon_name == NULL)
-        Tmp_win->icon_name = NoName;
-      BroadcastName(M_ICON_NAME,Tmp_win->w,Tmp_win->frame,
-		    (unsigned long)Tmp_win,Tmp_win->icon_name);
-      RedoIconName(Tmp_win);
-      break;
-      
-    case XA_WM_HINTS:
-      if (Tmp_win->wmhints) 
-	XFree ((char *) Tmp_win->wmhints);
-      Tmp_win->wmhints = XGetWMHints(dpy, Event.xany.window);
+    /* ================================================================
+     * Window title handling (EWMH _NET_WM_NAME + legacy WM_NAME)
+     * ================================================================ */
+    if (Event.xproperty.atom == _XA_NET_WM_NAME ||
+        Event.xproperty.atom == XA_WM_NAME)
+    {
+        char *new_name = NULL;
 
-      if(Tmp_win->wmhints == NULL)
-	return;
-
-      if((Tmp_win->wmhints->flags & IconPixmapHint)||
-	 (Tmp_win->wmhints->flags & IconWindowHint))
-	if(Tmp_win->icon_bitmap_file == Scr.DefaultIcon)
-	  Tmp_win->icon_bitmap_file = (char *)0;
-      
-      if((Tmp_win->wmhints->flags & IconPixmapHint)||
-         (Tmp_win->wmhints->flags & IconWindowHint))
-	{
-	  if (!(Tmp_win->flags & SUPPRESSICON))
-	    {
-              if (Tmp_win->icon_w)
-                XDestroyWindow(dpy,Tmp_win->icon_w);
-	      XDeleteContext(dpy, Tmp_win->icon_w, FvwmContext);
-	      if(Tmp_win->flags & ICON_OURS)
-		{
-		  if(Tmp_win->icon_pixmap_w != None)
-		    {
-		      XDestroyWindow(dpy,Tmp_win->icon_pixmap_w);
-		      XDeleteContext(dpy, Tmp_win->icon_pixmap_w, FvwmContext);
-		    }
-		}
-	      else 
-		XUnmapWindow(dpy,Tmp_win->icon_pixmap_w);
-	    }
-          Tmp_win->icon_w = None;
-          Tmp_win->icon_pixmap_w = None;
-	  Tmp_win->iconPixmap = (Window)NULL;
-	  if(Tmp_win->flags & ICONIFIED)
-	    {
-	      Tmp_win->flags &= ~ICONIFIED;
-	      Tmp_win->flags &= ~ICON_UNMAPPED;
-	      CreateIconWindow(Tmp_win,Tmp_win->icon_x_loc,Tmp_win->icon_y_loc);
-	      Broadcast(M_ICONIFY,7,Tmp_win->w,Tmp_win->frame,
-			(unsigned long)Tmp_win,
-			Tmp_win->icon_x_loc,
-			Tmp_win->icon_y_loc,
-			Tmp_win->icon_w_width,
-			Tmp_win->icon_w_height);
-	      BroadcastConfig(M_CONFIGURE_WINDOW,Tmp_win);
-	      
-	      if (!(Tmp_win->flags & SUPPRESSICON))
-		{
-		  LowerWindow(Tmp_win);
-		  AutoPlace(Tmp_win);
-		  if(Tmp_win->Desk == Scr.CurrentDesk)
-		    {
-                      if(Tmp_win->icon_w)
-                        XMapWindow(dpy, Tmp_win->icon_w);
-		      if(Tmp_win->icon_pixmap_w != None)
-			XMapWindow(dpy, Tmp_win->icon_pixmap_w);
-		    }
-		}
-	      Tmp_win->flags |= ICONIFIED;
-	      DrawIconWindow(Tmp_win);
-	    }
-	}
-      break;
-
-    case XA_WM_NORMAL_HINTS:
-      {
-	int new_width, new_height;
-	
-	GetWindowSizeHints(Tmp_win);
-	new_width = Tmp_win->frame_width;
-	new_height = Tmp_win->frame_height;
-	ConstrainSize(Tmp_win, &new_width, &new_height);
-	if((new_width != Tmp_win->frame_width)||
-	   (new_height != Tmp_win->frame_height))
-	  SetupFrame(Tmp_win,Tmp_win->frame_x, Tmp_win->frame_y,
-		     new_width,new_height,False);
-
-	BroadcastConfig(M_CONFIGURE_WINDOW,Tmp_win);
-      }
-      break;
-
-    default:
-      if (Event.xproperty.atom == _XA_WM_PROTOCOLS)
-        FetchWmProtocols(Tmp_win);
-      else if (Event.xproperty.atom == _XA_WM_COLORMAP_WINDOWS)
+        /* Prefer UTF-8 EWMH title */
+        if (Event.xproperty.atom == _XA_NET_WM_NAME)
         {
-          FetchWmColormapWindows(Tmp_win);   /* frees old data */
-          ReInstallActiveColormap();
-        }
-      else if (Event.xproperty.atom == _XA_WM_STATE)
-        {
-          if ((Tmp_win != NULL) && (Tmp_win->flags & ClickToFocus)
-            &&(Tmp_win == Scr.Focus))
+            Atom actual = None;
+            int format = 0;
+            unsigned long nitems = 0, bytesafter = 0;
+            unsigned char *prop = NULL;
+
+            if (XGetWindowProperty(
+                    dpy, Tmp_win->w,
+                    _XA_NET_WM_NAME,
+                    0L, MAX_NAME_LEN,
+                    False,
+                    _XA_UTF8_STRING,
+                    &actual, &format,
+                    &nitems, &bytesafter,
+                    &prop) == Success &&
+                actual == _XA_UTF8_STRING &&
+                prop && nitems > 0)
             {
-	      Scr.Focus = NULL;
-	      SetFocus(Tmp_win->w, Tmp_win, 0);
-	    }
+                new_name = stripcpy((char *)prop);
+            }
+
+            if (prop)
+                XFree(prop);
         }
-      break;
+
+        /* Fallback: legacy ICCCM WM_NAME */
+        if (!new_name)
+        {
+            char **list = NULL;
+            int num = 0;
+
+            if (XGetTextProperty(dpy, Tmp_win->w, &text_prop, XA_WM_NAME) &&
+                text_prop.value && text_prop.nitems > 0)
+            {
+                if (XmbTextPropertyToTextList(
+                        dpy, &text_prop, &list, &num) >= Success &&
+                    num > 0 && list && list[0])
+                {
+                    new_name = stripcpy(list[0]);
+                }
+            }
+
+            if (list)
+                XFreeStringList(list);
+            if (text_prop.value)
+                XFree(text_prop.value);
+        }
+
+        if (!new_name)
+            new_name = stripcpy(NoName);
+
+	free_window_name(Tmp_win);
+	Tmp_win->name = new_name;
+	NormalizeTitleDashes(new_name);
+
+
+        BroadcastName(
+            M_WINDOW_NAME,
+            Tmp_win->w,
+            Tmp_win->frame,
+            (unsigned long)Tmp_win,
+            Tmp_win->name
+        );
+
+        if (!(Tmp_win->flags & ICONIFIED))
+            SetTitleBar(Tmp_win, (Scr.Hilite == Tmp_win), True);
+
+        return;
+    }
+
+    /* ================================================================
+     * Other property notifications
+     * ================================================================ */
+    switch (Event.xproperty.atom)
+    {
+        case XA_WM_ICON_NAME:
+#ifdef I18N
+            if (XGetWindowProperty(dpy, Tmp_win->w,
+                                   Event.xproperty.atom, 0L,
+                                   MAX_ICON_NAME_LEN, False,
+                                   AnyPropertyType,
+                                   &actual, &actual_format,
+                                   &nitems, &bytesafter,
+                                   (unsigned char **)&prop) != Success ||
+                actual == None)
+                return;
+
+            text_prop.value = prop;
+            text_prop.encoding = actual;
+            text_prop.format = actual_format;
+            text_prop.nitems = nitems;
+
+            if (XmbTextPropertyToTextList(dpy, &text_prop, &list, &num) < Success)
+                return;
+
+            free_icon_name(Tmp_win);
+            Tmp_win->icon_name = (num > 0 && list && list[0]) ? list[0] : NoName;
+#else
+            if (!XGetWMIconName(dpy, Tmp_win->w, &text_prop))
+                return;
+
+            free_icon_name(Tmp_win);
+            Tmp_win->icon_name = (char *)text_prop.value;
+#endif
+            if (!Tmp_win->icon_name)
+                Tmp_win->icon_name = NoName;
+
+            BroadcastName(M_ICON_NAME, Tmp_win->w, Tmp_win->frame,
+                          (unsigned long)Tmp_win, Tmp_win->icon_name);
+            RedoIconName(Tmp_win);
+            break;
+
+        case XA_WM_HINTS:
+            if (Tmp_win->wmhints)
+                XFree((char *)Tmp_win->wmhints);
+
+            Tmp_win->wmhints = XGetWMHints(dpy, Event.xany.window);
+            break;
+
+        case XA_WM_NORMAL_HINTS:
+            GetWindowSizeHints(Tmp_win);
+            BroadcastConfig(M_CONFIGURE_WINDOW, Tmp_win);
+            break;
+
+        default:
+            if (Event.xproperty.atom == _XA_WM_PROTOCOLS)
+                FetchWmProtocols(Tmp_win);
+            else if (Event.xproperty.atom == _XA_WM_COLORMAP_WINDOWS)
+            {
+                FetchWmColormapWindows(Tmp_win);
+                ReInstallActiveColormap();
+            }
+            else if (Event.xproperty.atom == _XA_WM_STATE)
+            {
+                if (Tmp_win == Scr.Focus && (Tmp_win->flags & ClickToFocus))
+                {
+                    Scr.Focus = NULL;
+                    SetFocus(Tmp_win->w, Tmp_win, 0);
+                }
+            }
+            break;
     }
 }
 

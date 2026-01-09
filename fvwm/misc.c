@@ -37,6 +37,11 @@ char NoName[] = "Untitled"; /* name if no name in XA_WM_NAME */
 char NoClass[] = "NoClass"; /* Class if no res_class in class hints */
 char NoResource[] = "NoResource"; /* Class if no res_name in class hints */
 
+// UTF-8 handling/flattening
+extern Atom XA_NET_WM_NAME;
+extern Atom XA_UTF8_STRING;
+
+
 FILE *console = NULL;
 
 /**************************************************************************
@@ -740,7 +745,36 @@ char *stripcpy(char *source)
   ptr[len]=0;
   return ptr;
 }
-  
+
+/*
+ * NormalizeTitleDashes
+ *
+ * Replace UTF-8 dash variants with plain ASCII " - "
+ * This avoids garbage rendering in FVWM95 titlebars.
+ */
+/* replace UTF-8 dashes with ASCII '-' */
+
+void NormalizeTitleDashes(char *s)
+{
+    unsigned char *p = (unsigned char *)s;
+    unsigned char *w = (unsigned char *)s;
+
+    while (*p)
+    {
+        /* UTF-8 em dash: E2 80 94 */
+        if (p[0] == 0xE2 && p[1] == 0x80 && p[2] == 0x94)
+        {
+            *w++ = '-';
+            p += 3;
+            continue;
+        }
+
+        *w++ = *p++;
+    }
+
+    *w = '\0';
+}
+
 
 
 /****************************************************************************

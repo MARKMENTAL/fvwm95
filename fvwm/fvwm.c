@@ -677,6 +677,10 @@ Atom _XA_OL_DECOR_RESIZE;
 Atom _XA_OL_DECOR_HEADER;
 Atom _XA_OL_DECOR_ICON_NAME;
 
+Atom XA_NET_WM_NAME = None;
+Atom XA_UTF8_STRING = None;
+
+
 void InternUsefulAtoms (void)
 {
   /* 
@@ -690,6 +694,8 @@ void InternUsefulAtoms (void)
   _XA_WM_TAKE_FOCUS       = XInternAtom (dpy, "WM_TAKE_FOCUS", False);
   _XA_WM_DELETE_WINDOW    = XInternAtom (dpy, "WM_DELETE_WINDOW", False);
   _XA_WM_DESKTOP          = XInternAtom (dpy, "WM_DESKTOP", False);
+  XA_NET_WM_NAME = XInternAtom(dpy, "_NET_WM_NAME", False);
+  XA_UTF8_STRING = XInternAtom(dpy, "UTF8_STRING", False);
 
   _XA_MwmAtom  = XInternAtom (dpy, "_MOTIF_WM_HINTS", False);
   _XA_MOTIF_WM = XInternAtom (dpy, "_MOTIF_WM_INFO", False);

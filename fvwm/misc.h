@@ -274,6 +274,11 @@ extern Bool PopUpMenu(MenuRoot *, int, int);
 void ComplexFunction(XEvent *eventp,Window w,FvwmWindow *tmp_win,
 		     unsigned long context, char *action, int *Module);
 extern int DeferExecution(XEvent *, Window *,FvwmWindow **, unsigned long *, int, int);
+
+//UTF-8 Flattening
+extern Atom XA_NET_WM_NAME;
+extern Atom XA_UTF8_STRING;
+
 void send_clientmessage (Window, Atom, Time);
 void SetBorder (FvwmWindow *, Bool,Bool,Bool, Window);
 void move_window(XEvent *eventp,Window w,FvwmWindow *tmp_win,

@@ -84,6 +84,9 @@ it should not be an option, once it works right. HEDU 2/2/94 */
 
 #define NULLSTR ((char *) NULL)
 
+// play nice with UTF-8 M dashes
+extern void NormalizeTitleDashes(char *s);
+
 /* contexts for button presses */
 #define C_NO_CONTEXT	0
 #define C_WINDOW	1
